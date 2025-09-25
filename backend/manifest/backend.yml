@@ -1,0 +1,69 @@
+name: BidHub
+description: A real-time online auction platform.
+
+features:
+  authentication:
+    user_entity: User
+    jwt_secret: env(JWT_SECRET)
+  s3_storage:
+    bucket_name: env(S3_BUCKET_NAME)
+    access_key_id: env(S3_ACCESS_KEY_ID)
+    secret_access_key: env(S3_SECRET_ACCESS_KEY)
+    region: env(S3_REGION)
+
+entities:
+  User:
+    properties:
+      name: string(required=true)
+      email: string(unique=true, required=true)
+      password: password
+    relationships:
+      - type: hasMany
+        entity: Item
+        foreignKey: sellerId
+      - type: hasMany
+        entity: Bid
+        foreignKey: bidderId
+
+  Item:
+    properties:
+      title: string(required=true)
+      description: string
+      imageUrl: file(required=true)
+      startingPrice: number(required=true, min=0)
+      currentPrice: number(required=true)
+      endTime: date(required=true)
+      status:
+        type: enum
+        values: [Active, Sold, Expired]
+        default: Active
+    relationships:
+      - type: belongsTo
+        entity: User
+        foreignKey: sellerId
+      - type: hasMany
+        entity: Bid
+        foreignKey: itemId
+    access_policies:
+      - role: User
+        permissions: [create, read]
+        # Users can only update/delete their own items
+        update_filter: { sellerId: '{{user.id}}' }
+        delete_filter: { sellerId: '{{user.id}}' }
+
+  Bid:
+    properties:
+      amount: number(required=true)
+    relationships:
+      - type: belongsTo
+        entity: User
+        foreignKey: bidderId
+      - type: belongsTo
+        entity: Item
+        foreignKey: itemId
+    validation:
+      - expression: 'this.amount > this.item.currentPrice'
+        message: 'Bid must be higher than the current price.'
+    access_policies:
+      - role: User
+        permissions: [create, read]
